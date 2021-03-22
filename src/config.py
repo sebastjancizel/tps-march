@@ -12,6 +12,9 @@ TRAIN_DATA = DATA_DIR / "train_enc.csv"
 TEST_DATA = DATA_DIR / "test_enc.csv"
 TRAIN_FOLDS = DATA_DIR / "train_folds.csv"
 
+RANDOM_STATE = 42
+
+
 if __name__ == "__main__":
     print(f"Root dir is : {ROOT_DIR}")
     print(f"Data dir is : {DATA_DIR}")
