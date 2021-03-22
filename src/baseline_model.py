@@ -17,10 +17,10 @@ def fit_ensamble(x_train, y_train):
     lgbm = LGBMClassifier()
     lgbm.fit(x_train, y_train, verbose=False)
 
-    xgbm = XGBClassifier()
+    xgbm = XGBClassifier(eval_metric="logloss")
     xgbm.fit(x_train, y_train, verbose=False)
 
-    logres = linear_model.LogisticRegression()
+    logres = linear_model.LogisticRegression(max_iter=1000)
     logres.fit(x_train, y_train)
 
     return lgbm, xgbm, logres
@@ -47,7 +47,7 @@ def run():
         predictions = []
 
         for model in models:
-            probs = model.predict_proba(x_valid, y_valid)
+            probs = model.predict_proba(x_valid)[:, 1]
             print(f"Model {model.__class__.__name__}:")
             model_score = metrics.roc_auc_score(y_valid, probs)
             print(f"AUC score: {model_score}.")
@@ -57,14 +57,10 @@ def run():
         column_stack = np.column_stack(predictions)
 
         opt = OptimizeAUC()
-        opt = opt.fit(column_stack, y_train)
-        opt_preds = opt.predict(x_valid)
-        opt_auc = metrics.roc_auc_score(y_valid, opt_preds)
-
-        print(f"Optimized AUC: {opt_auc}.")
+        opt = opt.fit(column_stack, y_valid)
 
         print("=" * 50)
 
 
 if __name__ == "__main__":
-    pass
+    run()
