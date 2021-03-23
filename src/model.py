@@ -13,12 +13,12 @@ from sklearn import metrics
 from sklearn import linear_model
 
 
-def fit_ensamble(x_train, y_train):
-    lgbm = LGBMClassifier(**config.LGB_PARAMS)
-    lgbm.fit(x_train, y_train, verbose=False)
+def fit_ensamble(x_train, y_train, x_valid, y_valid):
+    lgbm = LGBMClassifier(**model_parameters.LGB_PARAMS)
+    lgbm.fit(x_train, y_train, eval_set=[(x_valid, y_valid)], verbose=False)
 
-    xgbm = XGBClassifier(**config.XGB_PARAMS)
-    xgbm.fit(x_train, y_train, verbose=False)
+    xgbm = XGBClassifier(**model_parameters.XGB_PARAMS)
+    xgbm.fit(x_train, y_train, eval_set=[(x_valid, y_valid)], verbose=False)
 
     logres = linear_model.LogisticRegression(max_iter=1000)
     logres.fit(x_train, y_train)
