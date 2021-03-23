@@ -11,7 +11,19 @@ from scipy.optimize import fmin
 def print_score(model, x_valid, y_valid):
     preds = model.predict_proba(x_valid)[:, 1]
     score = metrics.roc_auc_score(y_valid, preds)
-    print(f"Model {model.__class__.__name__}, AUC score: {score}")
+    print(f"Model {model.__class__.__name__}, AUC score: {score:.6f}")
+
+
+def split_fold(df, fold, features):
+    """
+    Utility function that splits the dataset into folds at every step.
+    """
+    return (
+        df.loc[df.kfold != fold, features],
+        df.loc[df.kfold != fold, "target"],
+        df.loc[df.kfold == fold, features],
+        df.loc[df.kfold == fold, "target"],
+    )
 
 
 class OptimizeAUC:
@@ -29,7 +41,7 @@ class OptimizeAUC:
         loss_partial = partial(self._auc, X=X, y=y)
         initial_coef = np.random.dirichlet(np.ones(X.shape[1]), size=1)
 
-        self.coef_ = fmin(loss_partial, initial_coef, disp=True)
+        self.coef_ = fmin(loss_partial, initial_coef, disp=False)
 
     def predict(self, X):
         x_coef = X * self.coef_

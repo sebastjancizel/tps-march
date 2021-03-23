@@ -6,7 +6,6 @@ LGB_PARAMS = dict(
     cat_l2=30.73295435314998,
     cat_smooth=80.3621043082745,
     colsample_bytree=0.8302782612074199,
-    early_stopping_round=200,
     learning_rate=0.010902370728351977,
     max_bin=308,
     max_depth=74,

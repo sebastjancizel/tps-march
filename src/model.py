@@ -5,7 +5,7 @@ import numpy as np
 import config
 import model_parameters
 
-from utils import OptimizeAUC, print_score
+from utils import OptimizeAUC, print_score, split_fold
 from tqdm import tqdm
 from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
@@ -53,11 +53,9 @@ def run():
     features = cont_cols + cat_cols
 
     for fold in tqdm(range(10)):
-        print(f"Starting fold: {fold}")
-        x_train = df.loc[df.kfold != fold, features]
-        y_train = df.loc[df.kfold != fold, "target"]
-        x_valid = df.loc[df.kfold == fold, features]
-        y_valid = df.loc[df.kfold == fold, "target"]
+        print(f"\n Starting fold: {fold}")
+
+        x_train, y_train, x_valid, y_valid = split_fold(df, fold, features)
 
         models = fit_ensamble(x_train, y_train, x_valid, y_valid)
 
@@ -80,10 +78,8 @@ def run():
 
     for fold in tqdm(range(10)):
         print(f"Starting fold: {fold}")
-        x_train = df.loc[df.kfold != fold, l2_features]
-        y_train = df.loc[df.kfold != fold, "target"]
-        x_valid = df.loc[df.kfold == fold, l2_features]
-        y_valid = df.loc[df.kfold == fold, "target"]
+
+        x_train, y_train, x_valid, y_valid = split_fold(df, fold, l2_features)
 
         lgbm = LGBMClassifier()
         lgbm.fit(

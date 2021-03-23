@@ -1,8 +1,13 @@
+import sys
 from pathlib import Path
 
 COMPETITION_NAME = "tabular-playground-series-mar-2021"
 
-ROOT_DIR = Path("/Users/sebastjancizel/Documents/Projects.tmp/tps-march")
+if sys.platform == "darwin":
+    ROOT_DIR = Path("/Users/sebastjancizel/Documents/Projects.tmp/tps-march")
+else:
+    ROOT_DIR = Path("/content/tps-march")
+
 DATA_DIR = ROOT_DIR / "input"
 
 RAW_TRAIN_DATA = DATA_DIR / "train.csv"
