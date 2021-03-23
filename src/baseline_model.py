@@ -11,6 +11,7 @@ from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
 from sklearn import metrics
 from sklearn import linear_model
+from sklearn import ensamble
 
 
 def fit_ensamble(x_train, y_train):

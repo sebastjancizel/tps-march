@@ -7,12 +7,19 @@ from functools import partial
 from sklearn import metrics
 from scipy.optimize import fmin
 
+
+def print_score(model, x_valid, y_valid):
+    preds = model.predict_proba(x_valid)[:, 1]
+    score = metrics.roc_auc_score(y_valid, preds)
+    print(f"Model {mode.__class__.__name__}, AUC score: {score}")
+
+
 class OptimizeAUC:
     def __init__(self):
         self.coef_ = 0
 
     def _auc(self, coef, X, y):
-        x_coef =  X * coef
+        x_coef = X * coef
         predictions = np.sum(x_coef, axis=1)
         auc_score = metrics.roc_auc_score(y, predictions)
 
