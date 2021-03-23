@@ -11,7 +11,7 @@ from scipy.optimize import fmin
 def print_score(model, x_valid, y_valid):
     preds = model.predict_proba(x_valid)[:, 1]
     score = metrics.roc_auc_score(y_valid, preds)
-    print(f"Model {mode.__class__.__name__}, AUC score: {score}")
+    print(f"Model {model.__class__.__name__}, AUC score: {score}")
 
 
 class OptimizeAUC:

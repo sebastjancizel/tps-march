@@ -10,29 +10,43 @@ from tqdm import tqdm
 from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
 from sklearn import metrics
-from sklearn import linear_model
+from sklearn import ensemble
 
 
 def fit_ensamble(x_train, y_train, x_valid, y_valid):
-    lgbm = LGBMClassifier(**model_parameters.LGB_PARAMS)
-    lgbm.fit(x_train, y_train, eval_set=[(x_valid, y_valid)], verbose=False)
+    lgbm = LGBMClassifier()
+    lgbm.fit(
+        x_train,
+        y_train,
+        eval_set=[(x_valid, y_valid)],
+        verbose=False,
+    )
     print_score(lgbm, x_valid, y_valid)
 
-    xgbm = XGBClassifier(**model_parameters.XGB_PARAMS)
-    xgbm.fit(x_train, y_train, eval_set=[(x_valid, y_valid)], verbose=False)
+    xgbm = XGBClassifier(eval_metric="logloss", use_label_encoder=False)
+    xgbm.fit(
+        x_train,
+        y_train,
+        eval_set=[(x_valid, y_valid)],
+        eval_metric="auc",
+        verbose=False,
+    )
     print_score(xgbm, x_valid, y_valid)
 
-    logres = linear_model.LogisticRegression(max_iter=1000)
-    logres.fit(x_train, y_train)
-    print_score(logres, x_valid, y_valid)
+    ada = ensemble.AdaBoostClassifier()
+    ada.fit(x_train, y_train)
+    print_score(ada, x_valid, y_valid)
 
-    return lgbm, xgbm, logres
+    return lgbm, xgbm, ada
 
 
 def run():
     df = pd.read_csv(
         config.TRAIN_DATA,
     )
+
+    for i in range(3):
+        df[f"model_{i}"] = 0
 
     cat_cols = [col for col in df.columns if col.endswith("le")]
     cont_cols = [col for col in df.columns if col.startswith("cont")]
@@ -45,15 +59,13 @@ def run():
         x_valid = df.loc[df.kfold == fold, features]
         y_valid = df.loc[df.kfold == fold, "target"]
 
-        models = fit_ensamble(x_train, y_train)
+        models = fit_ensamble(x_train, y_train, x_valid, y_valid)
 
         predictions = []
 
-        for model in models:
+        for i, model in enumerate(models):
             probs = model.predict_proba(x_valid)[:, 1]
-            print(f"Model {model.__class__.__name__}:")
-            model_score = metrics.roc_auc_score(y_valid, probs)
-            print(f"AUC score: {model_score}.")
+            df.loc[df.kfold == fold, f"model_{i}"] = probs
             predictions.append(probs)
         print("-" * 50)
 
@@ -63,6 +75,25 @@ def run():
         opt = opt.fit(column_stack, y_valid)
 
         print("=" * 50)
+
+    l2_features = [f"model_{i}" for i in range(3)]
+
+    for fold in tqdm(range(10)):
+        print(f"Starting fold: {fold}")
+        x_train = df.loc[df.kfold != fold, l2_features]
+        y_train = df.loc[df.kfold != fold, "target"]
+        x_valid = df.loc[df.kfold == fold, l2_features]
+        y_valid = df.loc[df.kfold == fold, "target"]
+
+        lgbm = LGBMClassifier()
+        lgbm.fit(
+            x_train,
+            y_train,
+            eval_set=[(x_valid, y_valid)],
+            verbose=False,
+        )
+
+        print_score(lgbm, x_valid, y_valid)
 
 
 if __name__ == "__main__":
