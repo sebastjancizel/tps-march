@@ -14,7 +14,7 @@ from sklearn import ensemble
 
 
 def fit_ensamble(x_train, y_train, x_valid, y_valid):
-    lgbm = LGBMClassifier()
+    lgbm = LGBMClassifier(**model_parameters.LGB_PARAMS)
     lgbm.fit(
         x_train,
         y_train,
@@ -23,7 +23,7 @@ def fit_ensamble(x_train, y_train, x_valid, y_valid):
     )
     print_score(lgbm, x_valid, y_valid)
 
-    xgbm = XGBClassifier(eval_metric="logloss", use_label_encoder=False)
+    xgbm = XGBClassifier(model_parameters.XGB_PARAMS)
     xgbm.fit(
         x_train,
         y_train,
