@@ -74,7 +74,7 @@ def run():
 
         print("=" * 50)
 
-    l2_features = [f"model_{i}" for i in range(3)]
+    l2_features = cat_cols + cont_cols + [f"model_{i}" for i in range(3)]
 
     for fold in tqdm(range(10)):
         print(f"Starting fold: {fold}")
