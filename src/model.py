@@ -11,10 +11,21 @@ from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
 from sklearn import metrics
 from sklearn import ensemble
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neural_network import MLPClassifier
+
+NUM_MODELS = 4
 
 
-def fit_ensamble(x_train, y_train, x_valid, y_valid):
-    lgbm = LGBMClassifier(**model_parameters.LGB_PARAMS)
+def fit_ensamble(x_train, y_train, x_valid, y_valid, quick=True):
+
+    if quick:
+        lgbm = LGBMClassifier()
+        xgbm = XGBClassifier(use_label_encoder=False)
+    else:
+        lgbm = LGBMClassifier(**model_parameters.LGB_PARAMS)
+        xgbm = XGBClassifier(**model_parameters.XGB_PARAMS)
+
     lgbm.fit(
         x_train,
         y_train,
@@ -23,7 +34,6 @@ def fit_ensamble(x_train, y_train, x_valid, y_valid):
     )
     print_score(lgbm, x_valid, y_valid)
 
-    xgbm = XGBClassifier(model_parameters.XGB_PARAMS)
     xgbm.fit(
         x_train,
         y_train,
@@ -37,7 +47,11 @@ def fit_ensamble(x_train, y_train, x_valid, y_valid):
     ada.fit(x_train, y_train)
     print_score(ada, x_valid, y_valid)
 
-    return lgbm, xgbm, ada
+    mlp = MLPClassifier(random_state=config.RANDOM_STATE, max_iter=300)
+    mlp.fit(x_train, y_train)
+    print_score(mlp, x_valid, y_valid)
+
+    return lgbm, xgbm, ada, mlp
 
 
 def run():
@@ -45,7 +59,7 @@ def run():
         config.TRAIN_DATA,
     )
 
-    for i in range(3):
+    for i in range(NUM_MODELS):
         df[f"model_{i}"] = 0
 
     cat_cols = [col for col in df.columns if col.endswith("le")]
@@ -70,11 +84,15 @@ def run():
         column_stack = np.column_stack(predictions)
 
         opt = OptimizeAUC()
-        opt = opt.fit(column_stack, y_valid)
+        opt.fit(column_stack, y_valid)
+        opt_score = metrics.roc_auc_score(y_valid, opt.predict(x_valid))
+
+        print(f"Optimized AUC: {opt_score}")
+        print(f"Optimized coefficients: {opt.coef_}")
 
         print("=" * 50)
 
-    l2_features = cat_cols + cont_cols + [f"model_{i}" for i in range(3)]
+    l2_features = cat_cols + cont_cols + [f"model_{i}" for i in range(NUM_MODELS)]
 
     for fold in tqdm(range(10)):
         print(f"Starting fold: {fold}")
