@@ -11,7 +11,6 @@ from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
 from sklearn import metrics
 from sklearn import ensemble
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.neural_network import MLPClassifier
 
 NUM_MODELS = 4
@@ -47,11 +46,7 @@ def fit_ensamble(x_train, y_train, x_valid, y_valid, quick=True):
     ada.fit(x_train, y_train)
     print_score(ada, x_valid, y_valid)
 
-    mlp = MLPClassifier(random_state=config.RANDOM_STATE, max_iter=300)
-    mlp.fit(x_train, y_train)
-    print_score(mlp, x_valid, y_valid)
-
-    return lgbm, xgbm, ada, mlp
+    return lgbm, xgbm, ada
 
 
 def run():
