@@ -34,7 +34,6 @@ class OptimizeAUC:
         x_coef = X * coef
         predictions = np.sum(x_coef, axis=1)
         auc_score = metrics.roc_auc_score(y, predictions)
-
         return -1.0 * auc_score
 
     def fit(self, X, y):
