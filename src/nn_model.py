@@ -2,6 +2,7 @@ import sys
 import os
 import pandas as pd
 import numpy as np
+from pandas.io.parsers import count_empty_vals
 import config
 import torch
 import torch.nn as nn
@@ -14,7 +15,7 @@ from torch.utils.data import DataLoader, Dataset
 
 
 class PlaygroundData(Dataset):
-    def __init__(self, data=None, path=None, train=True):
+    def __init__(self, data=None, path=None, train=True, device=torch.device("cpu")):
         if data is not None:
             self.data = data
         else:
@@ -22,6 +23,7 @@ class PlaygroundData(Dataset):
         self.catcols = [col for col in self.data.columns if col.endswith("le")]
         self.contcols = [col for col in self.data.columns if col.startswith("cont")]
         self.features = self.catcols + self.contcols
+        self.device = device
 
     def __len__(self):
         return len(self.data)
@@ -30,16 +32,17 @@ class PlaygroundData(Dataset):
         cat_features = self.data[self.catcols].iloc[idx]
         cont_features = self.data[self.contcols].iloc[idx]
 
-        label = self.data.target.iloc[idx]
-        return (
-            cat_features.values.astype(np.int32),
-            cont_features.values.astype(np.float32),
-            label,
+        x_cat = torch.tensor(cat_features.values, dtype=torch.int32, device=self.device)
+        x_cont = torch.tensor(
+            cont_features.values, dtype=torch.float32, device=self.device
         )
+        y = torch.tensor(self.data.target.iloc[idx], dtype=torch.long)
+
+        return x_cat, x_cont, y
 
     @classmethod
-    def from_df(cls, df):
-        return cls(data=df)
+    def from_df(cls, df, device):
+        return cls(data=df, device=device)
 
     @staticmethod
     def embed_dim(n):
@@ -113,16 +116,15 @@ class PlaygroundModel(nn.Module):
 def run(fold, epochs=10):
     df = pd.read_csv(config.TRAIN_DATA)
 
-    train = PlaygroundData.from_df(df.loc[df.kfold != fold])
-    valid = PlaygroundData.from_df(df.loc[df.kfold == fold])
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    train = PlaygroundData.from_df(df.loc[df.kfold != fold], device)
+    valid = PlaygroundData.from_df(df.loc[df.kfold == fold], device)
 
     train_dl = DataLoader(train, batch_size=1024, shuffle=True)
     valid_dl = DataLoader(valid, batch_size=2048, shuffle=False)
 
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-
     model = PlaygroundModel(train.embedding_sizes(), len(train.contcols))
-    model.to(device)
+    model = model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
@@ -134,9 +136,6 @@ def run(fold, epochs=10):
             for idx, batch in enumerate(tepoch):
                 tepoch.set_description(f"Epoch {epoch}.")
                 x_cat, x_cont, y = batch
-                x_cat.to(device)
-                x_cont.to(device)
-                y.to(device)
 
                 outputs = model(x_cat, x_cont)
                 loss = criterion(outputs, y)
