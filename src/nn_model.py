@@ -1,9 +1,7 @@
-import sys
-import os
 import pandas as pd
 import numpy as np
-from pandas.io.parsers import count_empty_vals
 import config
+import utils
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,34 +13,47 @@ from torch.utils.data import DataLoader, Dataset
 
 
 class PlaygroundData(Dataset):
-    def __init__(self, data=None, path=None, train=True, device=torch.device("cpu")):
+    def __init__(
+        self,
+        data=None,
+        path=None,
+    ):
         if data is not None:
             self.data = data
         else:
             self.data = pd.read_csv(path)
-        self.catcols = [col for col in self.data.columns if col.endswith("le")]
-        self.contcols = [col for col in self.data.columns if col.startswith("cont")]
-        self.features = self.catcols + self.contcols
-        self.device = device
+        self.catcol_names = [col for col in self.data.columns if col.endswith("le")]
+        self.contcol_names = [
+            col for col in self.data.columns if col.startswith("cont")
+        ]
+        self.features = self.catcol_names + self.contcol_names
+        self.device = (
+            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        )
+        self.catcols = torch.tensor(
+            self.data[self.catcol_names].values, device=self.device, dtype=torch.long
+        )
+        self.contcols = torch.tensor(
+            self.data[self.contcol_names].values,
+            device=self.device,
+            dtype=torch.float32,
+        )
+        self.target = torch.tensor(
+            self.data.target.values, device=self.device, dtype=torch.long
+        )
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        cat_features = self.data[self.catcols].iloc[idx]
-        cont_features = self.data[self.contcols].iloc[idx]
-
-        x_cat = torch.tensor(cat_features.values, dtype=torch.int32, device=self.device)
-        x_cont = torch.tensor(
-            cont_features.values, dtype=torch.float32, device=self.device
-        )
-        y = torch.tensor(self.data.target.iloc[idx], dtype=torch.long)
-
+        x_cat = self.catcols[idx, :]
+        x_cont = self.contcols[idx, :]
+        y = self.target[idx]
         return x_cat, x_cont, y
 
     @classmethod
-    def from_df(cls, df, device):
-        return cls(data=df, device=device)
+    def from_df(cls, df):
+        return cls(data=df)
 
     @staticmethod
     def embed_dim(n):
@@ -51,7 +62,7 @@ class PlaygroundData(Dataset):
     def embedding_sizes(self):
         sizes = []
 
-        for col in self.catcols:
+        for col in self.catcol_names:
             nunique = self.data[col].max()
             emb_dim = self.embed_dim(nunique)
             sizes.append((nunique + 1, emb_dim))
@@ -71,19 +82,19 @@ class PlaygroundModel(nn.Module):
         self.n_emb = sum(emb.embedding_dim for emb in self.embeddings)
         self.n_cont = n_cont
 
-        self.cont1 = nn.Linear(n_cont, 256)
-        self.cont2 = nn.Linear(256, 256)
-        self.cont3 = nn.Linear(256, 256)
+        self.cont1 = nn.Linear(n_cont, 64)
+        self.cont2 = nn.Linear(64, 64)
+        self.cont3 = nn.Linear(64, 64)
 
-        self.fc1 = nn.Linear(self.n_emb + 256, 512)
-        self.fc2 = nn.Linear(512, 512)
-        self.fc3 = nn.Linear(512, 2)
+        self.fc1 = nn.Linear(self.n_emb + 64, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, 2)
 
         self.bn1 = nn.BatchNorm1d(self.n_cont)
-        self.bn2 = nn.BatchNorm1d(256)
-        self.bn3 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(64)
+        self.bn3 = nn.BatchNorm1d(64)
 
-        self.emb_drops = nn.Dropout(0.6)
+        self.emb_drops = nn.Dropout(0.3)
         self.drops = nn.Dropout(0.3)
 
     def forward(self, x_cat, x_cont):
@@ -110,80 +121,76 @@ class PlaygroundModel(nn.Module):
 
     def predict_proba(self, x_cat, x_cont):
         x = self.forward(x_cat, x_cont)
-        return nn.Softmax()(x)
+        return nn.Softmax(-1)(x)
+
+
+def fold_split(df, fold):
+    train = PlaygroundData.from_df(df.loc[df.kfold != fold])
+    valid = PlaygroundData.from_df(df.loc[df.kfold == fold])
+    return train, valid
+
+
+def train_loop(train_dl, model, optimizer, criterion, epoch):
+    training_loss = utils.AverageMeter(name="loss")
+
+    model.train()
+
+    with tqdm(train_dl, unit="batch") as tepoch:
+        for batch in tepoch:
+            optimizer.zero_grad()
+
+            tepoch.set_description(f"Epoch {epoch}.")
+            x_cat, x_cont, y = batch
+
+            outputs = model(x_cat, x_cont)
+            loss = criterion(outputs, y)
+            loss.backward()
+            optimizer.step()
+
+            training_loss.update(loss.item(), n=x_cat.shape[0])
+
+            tepoch.set_postfix(Metrics=training_loss)
+
+
+def eval_loop(valid_dl, model):
+
+    model.eval()
+
+    valid_auc = utils.AverageMeter(name="AUC")
+    with torch.no_grad():
+        with tqdm(valid_dl, unit="batch") as vepoch:
+            for batch in vepoch:
+                vepoch.set_description(f"Validation")
+                x_cat, x_cont, y = batch
+
+                batch_proba = (
+                    model.predict_proba(x_cat, x_cont).detach().cpu().numpy()[:, 1]
+                )
+                auc_score = roc_auc_score(y.cpu().numpy(), batch_proba)
+                valid_auc.update(auc_score, n=x_cat.shape[0])
+                vepoch.set_postfix(Metrics=valid_auc)
 
 
 def run(fold, epochs=10):
     df = pd.read_csv(config.TRAIN_DATA)
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    train = PlaygroundData.from_df(df.loc[df.kfold != fold], device)
-    valid = PlaygroundData.from_df(df.loc[df.kfold == fold], device)
 
-    train_dl = DataLoader(train, batch_size=1024, shuffle=True)
-    valid_dl = DataLoader(valid, batch_size=2048, shuffle=False)
+    train, valid = fold_split(df, fold)
 
-    model = PlaygroundModel(train.embedding_sizes(), len(train.contcols))
+    train_dl = DataLoader(train, batch_size=512, shuffle=True)
+    valid_dl = DataLoader(valid, batch_size=512, shuffle=False)
+
+    model = PlaygroundModel(train.embedding_sizes(), 11)
     model = model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters())
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     criterion = nn.CrossEntropyLoss()
 
     for epoch in range(epochs):
-        running_loss = 0
-        model.train()
-        with tqdm(train_dl, unit="batch") as tepoch:
-            for idx, batch in enumerate(tepoch):
-                tepoch.set_description(f"Epoch {epoch}.")
-                x_cat, x_cont, y = batch
+        train_loop(train_dl, model, optimizer, criterion, epoch)
+        eval_loop(valid_dl, model)
 
-                outputs = model(x_cat, x_cont)
-                loss = criterion(outputs, y)
-                loss.backward()
-                optimizer.step()
-                running_loss += float(loss)
-                if idx % 10 == 9:
-                    tepoch.set_postfix(loss=running_loss / (10 * idx))
-
-        model.eval()
-        with torch.no_grad():
-            with tqdm(valid_dl, unit="batch") as vepoch:
-                running_auc = 0
-                for idx, batch in enumerate(vepoch):
-                    vepoch.set_description(f"Validation")
-                    x_cat, x_cont, y = batch
-                    x_cat.to(device)
-                    x_cont.to(device)
-                    y.to(device)
-
-                    batch_proba = (
-                        model.predict_proba(x_cat, x_cont).detach().numpy()[:, 1]
-                    )
-                    auc_score = roc_auc_score(y.numpy(), batch_proba)
-                    running_auc += auc_score
-                    if idx > 1:
-                        vepoch.set_postfix(AUC=running_auc / (idx))
-
-
-# class DenoisingAutoEncoder(nn.Module):
-#     def __init__(self):
-#         super(DenoisingAutoEncoder, self).__init__()
-#         self.fc1 = nn.Linear(11, 1500)
-#         self.fc2 = nn.Linear(1500, 1500)
-#         self.dp1 = nn.Dropout(0.3)
-#         self.fc3 = nn.Linear(1500, 1500)
-#         self.fc4 = nn.Linear(1500, 11)
-
-#     def forward(self, x):
-#         x = self.fc1(x)
-#         x = F.relu(x)
-#         x = self.fc2(x)
-#         x = F.relu(x)
-#         x = self.dp1(x)
-#         x = self.fc3(x)
-#         x = F.relu(x)
-#         x = self.fc4(x)
-#         return x
 
 if __name__ == "__main__":
     run(0)
