@@ -9,6 +9,7 @@ else:
     ROOT_DIR = Path("/content/tps-march")
 
 DATA_DIR = ROOT_DIR / "input"
+MODEL_DIR = ROOT_DIR / "models"
 
 RAW_TRAIN_DATA = DATA_DIR / "train.csv"
 RAW_TEST_DATA = DATA_DIR / "test.csv"

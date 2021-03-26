@@ -191,6 +191,8 @@ def run(fold, epochs=10):
         train_loop(train_dl, model, optimizer, criterion, epoch)
         eval_loop(valid_dl, model)
 
+    torch.save(model, config.MODEL_DIR / f"fold_{fold}.pth")
+
 
 if __name__ == "__main__":
     run(0)
