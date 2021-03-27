@@ -5,10 +5,10 @@ import utils
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from tqdm.auto import tqdm
-
 from sklearn.metrics import roc_auc_score
-
+from datetime import datetime
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 
@@ -187,7 +187,7 @@ def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95):
     train, valid = fold_split(df, fold)
 
     train_dl = DataLoader(train, batch_size=bs, shuffle=True)
-    valid_dl = DataLoader(valid, batch_size=2 * bs, shuffle=False)
+    valid_dl = DataLoader(valid, batch_size=2048, shuffle=False)
 
     model = PlaygroundModel(train.embedding_sizes(), 11)
     model = model.to(device)
@@ -198,7 +198,8 @@ def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95):
         optimizer, lambda epoch: lr_decay * epoch
     )
 
-    params = f"bs={bs}_lr={lr}_lr-decay={lr_decay}"
+    time = datetime.now().strftime("%Y-%m-%d_%H:%M")
+    params = f"bs={bs}_lr={lr}_lr-decay={lr_decay}__{time}"
     writer = SummaryWriter(log_dir=config.LOG_DIR / params / f"Fold={fold}")
 
     for epoch in range(epochs):
@@ -206,7 +207,7 @@ def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95):
         auc = eval_loop(valid_dl, model, writer=writer)
         scheduler.step()
 
-    torch.save(model, config.MODEL_DIR / comment / f"Fold={fold}_AUC={auc.val}.pth")
+    torch.save(model, config.MODEL_DIR / params / f"Fold={fold}_AUC={auc.val}.pth")
 
 
 if __name__ == "__main__":
