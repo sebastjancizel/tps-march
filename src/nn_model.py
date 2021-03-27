@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
+from pathlib import Path
 from tqdm.auto import tqdm
 from sklearn.metrics import roc_auc_score
 from datetime import datetime
@@ -150,10 +152,10 @@ def train_loop(train_dl, model, optimizer, criterion, epoch, writer=None):
 
             training_loss.update(loss.item(), n=x_cat.shape[0])
 
-            tepoch.set_postfix(Metrics=training_loss)
+            tepoch.set_postfix(Loss=training_loss.avg)
 
             if writer is not None:
-                writer.add_scalar("Loss/train", training_loss.val)
+                writer.add_scalar("Loss/train", training_loss.avg)
 
 
 def eval_loop(valid_dl, model, writer=None):
@@ -172,9 +174,9 @@ def eval_loop(valid_dl, model, writer=None):
                 )
                 auc_score = roc_auc_score(y.cpu().numpy(), batch_proba)
                 valid_auc.update(auc_score, n=x_cat.shape[0])
-                vepoch.set_postfix(Metrics=valid_auc)
+                vepoch.set_postfix(AUC=auc_score.avg)
                 if writer is not None:
-                    writer.add_scalar("AUC", valid_auc.val)
+                    writer.add_scalar("AUC", valid_auc.avg)
 
     return valid_auc
 
@@ -187,7 +189,7 @@ def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95):
     train, valid = fold_split(df, fold)
 
     train_dl = DataLoader(train, batch_size=bs, shuffle=True)
-    valid_dl = DataLoader(valid, batch_size=2048, shuffle=False)
+    valid_dl = DataLoader(valid, batch_size=4096, shuffle=False)
 
     model = PlaygroundModel(train.embedding_sizes(), 11)
     model = model.to(device)
@@ -207,7 +209,10 @@ def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95):
         auc = eval_loop(valid_dl, model, writer=writer)
         scheduler.step()
 
-    torch.save(model, config.MODEL_DIR / params / f"Fold={fold}_AUC={auc.val}.pth")
+    model_export_path = config.MODEL_DIR / params
+    model_export_path.mkdir(parents=True, exist_ok=True)
+
+    torch.save(model, model_export_path / f"Fold={fold}_AUC={auc.avg}.pth")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ else:
 
 DATA_DIR = ROOT_DIR / "input"
 MODEL_DIR = ROOT_DIR / "models"
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
 LOG_DIR = ROOT_DIR / "runs"
 
 RAW_TRAIN_DATA = DATA_DIR / "train.csv"
