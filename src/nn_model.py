@@ -179,23 +179,27 @@ def eval_loop(valid_dl, model, writer=None):
     return valid_auc
 
 
-def run(fold, epochs=10):
+def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95):
     df = pd.read_csv(config.TRAIN_DATA)
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     train, valid = fold_split(df, fold)
 
-    train_dl = DataLoader(train, batch_size=512, shuffle=True)
-    valid_dl = DataLoader(valid, batch_size=512, shuffle=False)
+    train_dl = DataLoader(train, batch_size=bs, shuffle=True)
+    valid_dl = DataLoader(valid, batch_size=2 * bs, shuffle=False)
 
     model = PlaygroundModel(train.embedding_sizes(), 11)
     model = model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 0.95 * epoch)
-    writer = SummaryWriter(comment="LR_SCHEDULER")
+    scheduler = torch.optim.lr_scheduler.LambdaLR(
+        optimizer, lambda epoch: lr_decay * epoch
+    )
+
+    comment = f"FOLD={fold}__bs={bs}_lr={lr}_lr-decay={lr_decay}"
+    writer = SummaryWriter(log_dir=config.LOG_DIR / comment)
 
     for epoch in range(epochs):
         train_loop(train_dl, model, optimizer, criterion, epoch, writer=writer)

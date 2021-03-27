@@ -10,13 +10,13 @@ else:
 
 DATA_DIR = ROOT_DIR / "input"
 MODEL_DIR = ROOT_DIR / "models"
+LOG_DIR = ROOT_DIR / "runs"
 
 RAW_TRAIN_DATA = DATA_DIR / "train.csv"
 RAW_TEST_DATA = DATA_DIR / "test.csv"
 
 TRAIN_DATA = DATA_DIR / "train_enc.csv"
 TEST_DATA = DATA_DIR / "test_enc.csv"
-TRAIN_FOLDS = DATA_DIR / "train_folds.csv"
 
 RANDOM_STATE = 42
 
