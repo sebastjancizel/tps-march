@@ -10,6 +10,7 @@ from tqdm.auto import tqdm
 from sklearn.metrics import roc_auc_score
 
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.tensorboard import SummaryWriter
 
 
 class PlaygroundData(Dataset):
@@ -130,7 +131,7 @@ def fold_split(df, fold):
     return train, valid
 
 
-def train_loop(train_dl, model, optimizer, criterion, epoch):
+def train_loop(train_dl, model, optimizer, criterion, epoch, writer=None):
     training_loss = utils.AverageMeter(name="loss")
 
     model.train()
@@ -151,8 +152,11 @@ def train_loop(train_dl, model, optimizer, criterion, epoch):
 
             tepoch.set_postfix(Metrics=training_loss)
 
+            if writer is not None:
+                writer.add_scalar("Loss/train", training_loss.val)
 
-def eval_loop(valid_dl, model):
+
+def eval_loop(valid_dl, model, writer=None):
 
     model.eval()
 
@@ -169,6 +173,10 @@ def eval_loop(valid_dl, model):
                 auc_score = roc_auc_score(y.cpu().numpy(), batch_proba)
                 valid_auc.update(auc_score, n=x_cat.shape[0])
                 vepoch.set_postfix(Metrics=valid_auc)
+                if writer is not None:
+                    writer.add_scalar("AUC", valid_auc.val)
+
+    return valid_auc
 
 
 def run(fold, epochs=10):
@@ -184,12 +192,15 @@ def run(fold, epochs=10):
     model = PlaygroundModel(train.embedding_sizes(), 11)
     model = model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     criterion = nn.CrossEntropyLoss()
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 0.95 * epoch)
+    writer = SummaryWriter(comment="LR_SCHEDULER")
 
     for epoch in range(epochs):
-        train_loop(train_dl, model, optimizer, criterion, epoch)
-        eval_loop(valid_dl, model)
+        train_loop(train_dl, model, optimizer, criterion, epoch, writer=writer)
+        eval_loop(valid_dl, model, writer=writer)
+        scheduler.step()
 
     torch.save(model, config.MODEL_DIR / f"fold_{fold}.pth")
 
