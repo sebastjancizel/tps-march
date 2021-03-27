@@ -182,7 +182,11 @@ def eval_loop(valid_dl, model, writer=None):
     return valid_auc
 
 
-def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95):
+def now():
+    return datetime.now().strftime("%Y-%m-%d_%H:%M")
+
+
+def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95, start_time=0):
     df = pd.read_csv(config.TRAIN_DATA)
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -202,8 +206,7 @@ def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95):
     )
 
     # Logging setup
-    time = datetime.now().strftime("%Y-%m-%d_%H:%M")
-    params = f"bs={bs}_lr={lr}_lr-decay={lr_decay}__{time}"
+    params = f"bs={bs}_lr={lr}_lr-decay={lr_decay}__{start_time}"
     writer = SummaryWriter(log_dir=config.LOG_DIR / params / f"Fold={fold}")
 
     for epoch in range(epochs):
@@ -218,4 +221,7 @@ def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95):
 
 
 if __name__ == "__main__":
-    run(0)
+    start_time = now()
+
+    for i in range(10):
+        run(fold, start_time=start_time)
