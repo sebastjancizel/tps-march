@@ -198,15 +198,15 @@ def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95):
         optimizer, lambda epoch: lr_decay * epoch
     )
 
-    comment = f"FOLD={fold}__bs={bs}_lr={lr}_lr-decay={lr_decay}"
-    writer = SummaryWriter(log_dir=config.LOG_DIR / comment)
+    params = f"bs={bs}_lr={lr}_lr-decay={lr_decay}"
+    writer = SummaryWriter(log_dir=config.LOG_DIR / params / f"Fold={fold}")
 
     for epoch in range(epochs):
         train_loop(train_dl, model, optimizer, criterion, epoch, writer=writer)
         auc = eval_loop(valid_dl, model, writer=writer)
         scheduler.step()
 
-    torch.save(model, config.MODEL_DIR / f"fold_{fold}_AUC={auc.val}.pth")
+    torch.save(model, config.MODEL_DIR / comment / f"Fold={fold}_AUC={auc.val}.pth")
 
 
 if __name__ == "__main__":
