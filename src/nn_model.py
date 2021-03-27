@@ -203,10 +203,10 @@ def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95):
 
     for epoch in range(epochs):
         train_loop(train_dl, model, optimizer, criterion, epoch, writer=writer)
-        eval_loop(valid_dl, model, writer=writer)
+        auc = eval_loop(valid_dl, model, writer=writer)
         scheduler.step()
 
-    torch.save(model, config.MODEL_DIR / f"fold_{fold}.pth")
+    torch.save(model, config.MODEL_DIR / f"fold_{fold}_AUC={auc.val}.pth")
 
 
 if __name__ == "__main__":
