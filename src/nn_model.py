@@ -60,6 +60,7 @@ class PlaygroundData(Dataset):
 
     @staticmethod
     def embed_dim(n):
+        """ Calculates the embedding dimension given the number of categories """
         return int(min(np.ceil(n / 2), 50))
 
     def embedding_sizes(self):
@@ -134,10 +135,10 @@ def fold_split(df, fold):
 
 
 def train_loop(train_dl, model, optimizer, criterion, epoch, writer=None):
-    training_loss = utils.AverageMeter(name="loss")
 
     model.train()
 
+    training_loss = utils.AverageMeter(name="loss")
     with tqdm(train_dl, unit="batch") as tepoch:
         for batch in tepoch:
             optimizer.zero_grad()
@@ -174,7 +175,7 @@ def eval_loop(valid_dl, model, writer=None):
                 )
                 auc_score = roc_auc_score(y.cpu().numpy(), batch_proba)
                 valid_auc.update(auc_score, n=x_cat.shape[0])
-                vepoch.set_postfix(AUC=auc_score.avg)
+                vepoch.set_postfix(AUC=valid_auc.avg)
                 if writer is not None:
                     writer.add_scalar("AUC", valid_auc.avg)
 
@@ -200,6 +201,7 @@ def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95):
         optimizer, lambda epoch: lr_decay * epoch
     )
 
+    # Logging setup
     time = datetime.now().strftime("%Y-%m-%d_%H:%M")
     params = f"bs={bs}_lr={lr}_lr-decay={lr_decay}__{time}"
     writer = SummaryWriter(log_dir=config.LOG_DIR / params / f"Fold={fold}")
