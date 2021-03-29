@@ -83,20 +83,28 @@ class PlaygroundModel(nn.Module):
                 for num_embedding, embedding_dim in embedding_sizes
             ]
         )
+
         self.n_emb = sum(emb.embedding_dim for emb in self.embeddings)
+        self.emb_fc = nn.Linear(self.n_emb, self.n_emb)
         self.n_cont = n_cont
 
-        self.cont1 = nn.Linear(n_cont, 64)
-        self.cont2 = nn.Linear(64, 64)
-        self.cont3 = nn.Linear(64, 64)
+        cont_fc_dim = 512
 
-        self.fc1 = nn.Linear(self.n_emb + 64, 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, 2)
+        self.emb1 = nn.Linear(self.n_emb, self.n_emb)
 
+        self.cont1 = nn.Linear(n_cont, cont_fc_dim)
+        self.cont2 = nn.Linear(cont_fc_dim, cont_fc_dim)
+        self.cont3 = nn.Linear(cont_fc_dim, cont_fc_dim)
+        self.cont4 = nn.Linear(cont_fc_dim, cont_fc_dim)
+
+        self.fc1 = nn.Linear(self.n_emb + cont_fc_dim, 128)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, 2)
+
+        self.emb_bn = nn.BatchNorm1d(self.n_emb)
         self.bn1 = nn.BatchNorm1d(self.n_cont)
-        self.bn2 = nn.BatchNorm1d(64)
-        self.bn3 = nn.BatchNorm1d(64)
+        self.bn2 = nn.BatchNorm1d(cont_fc_dim)
+        self.bn3 = nn.BatchNorm1d(128)
 
         self.emb_drops = nn.Dropout(0.3)
         self.drops = nn.Dropout(0.3)
@@ -105,6 +113,9 @@ class PlaygroundModel(nn.Module):
         x = [emb(x_cat[:, i]) for i, emb, in enumerate(self.embeddings)]
         x = torch.cat(x, dim=1)
         x = self.emb_drops(x)
+        x = self.emb1(x)
+        x = F.relu(x)
+        x = self.emb_bn(x)
         x_cont = self.bn1(x_cont)
         x_cont = self.cont1(x_cont)
         x_cont = F.relu(x_cont)
@@ -112,6 +123,8 @@ class PlaygroundModel(nn.Module):
         x_cont = F.relu(x_cont)
         x_cont = self.bn2(x_cont)
         x_cont = self.cont3(x_cont)
+        x_cont = F.relu(x_cont)
+        x_cont = self.cont4(x_cont)
         x_cont = F.relu(x_cont)
         x = torch.cat([x, x_cont], 1)
         x = F.relu(x)
@@ -186,7 +199,7 @@ def now():
     return datetime.now().strftime("%Y-%m-%d_%H:%M")
 
 
-def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95, start_time=0):
+def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.99, start_time=0):
     df = pd.read_csv(config.TRAIN_DATA)
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -223,5 +236,5 @@ def run(fold, epochs=10, bs=512, lr=1e-3, lr_decay=0.95, start_time=0):
 if __name__ == "__main__":
     start_time = now()
 
-    for i in range(10):
+    for fold in range(10):
         run(fold, start_time=start_time)
